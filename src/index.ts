@@ -11,15 +11,28 @@ interface Commit {
   message: string
 }
 
-async function popLatestMongoCommit(client: MongoClient): Promise<Commit | null> {
-  const collection = client.db('every-fkn-commit')?.collection<Commit>('fresh-commits')
-  if (collection == null) throw new Error('Could not find collection')
+async function sleep (ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms)
+  })
+}
 
-  return (await collection.findOneAndDelete({}, {
+async function popLatestMongoCommit(client: MongoClient): Promise<Commit | null> {
+  const freshCommitsCollection = client.db('every-fkn-commit')?.collection<Commit>('fresh-commits')
+  const usedCommitsCollection = client.db('every-fkn-commit')?.collection<Commit>('used-commits')
+  if (freshCommitsCollection == null || usedCommitsCollection == null) throw new Error('Could not find collection')
+
+  const commit = await freshCommitsCollection.findOneAndDelete({}, {
     sort: {
       date: 'desc'
     }
-  })).value
+  })
+  if (commit.value == null) return null
+
+  usedCommitsCollection.updateOne({ sha: commit.value.sha }, { $set: commit.value }, {
+    upsert: true
+  })
+  return commit.value
 }
 
 async function insertNewCommit (client: MongoClient, commit: Commit): Promise<boolean> {
@@ -27,7 +40,9 @@ async function insertNewCommit (client: MongoClient, commit: Commit): Promise<bo
   const usedCommitsCollection = client.db('every-fkn-commit')?.collection<Commit>('used-commits')
   if (freshCommitsCollection == null || usedCommitsCollection == null) throw new Error('Could not find collection')
 
-  if (await usedCommitsCollection.findOne<Commit>({ sha: commit.sha }) != null) return false
+  if (await usedCommitsCollection.findOne<Commit>({ sha: commit.sha }) != null) {
+    return false
+  }
 
   const updateResult = await freshCommitsCollection.updateOne({ sha: commit.sha }, { $set: commit }, {
     upsert: true
@@ -58,7 +73,7 @@ function keywordPresentInTweet(message: string, keyword: string): boolean {
   return message.substring(0, 255).includes(keyword)
 }
 
-async function processNewestCommit (octokitClient: Octokit, mongoClient: MongoClient, keyword: string) {
+async function handleNewestCommit (octokitClient: Octokit, mongoClient: MongoClient, keyword: string) {
   const commit = await getLatestGithubCommit(octokitClient, keyword)
   if (commit == null || !keywordPresentInTweet(commit.message, keyword)) {
     return
@@ -66,6 +81,18 @@ async function processNewestCommit (octokitClient: Octokit, mongoClient: MongoCl
 
   await insertNewCommit(mongoClient, commit)
 }
+
+async function broadcastCommit (commit: Commit): Promise<void> {
+  console.log(commit)
+}
+
+async function handleTweetCommit (mongoClient: MongoClient): Promise<void> {
+  const commit = await popLatestMongoCommit(mongoClient)
+  if (commit == null) {
+    return
+  }
+  broadcastCommit(commit)
+} 
 
 // TODO
 // Get and store all commits with "fuck" that came after the most recent one gotten
@@ -79,25 +106,14 @@ async function processNewestCommit (octokitClient: Octokit, mongoClient: MongoCl
 
 async function main () {
   const uri = `mongodb+srv://${process.env.DB_USER ?? 'user'}:${process.env.DB_PASSWORD ?? 'pass'}@cluster0.cftdtes.mongodb.net/?retryWrites=true&w=majority`
-  const mongoClient = new MongoClient(uri, {
+  const mongoClient = await new MongoClient(uri, {
     serverApi: {
       version: ServerApiVersion.v1,
       strict: true,
       deprecationErrors: true
     }
-  })
-  await mongoClient.connect()
+  }).connect()
   const octokitClient = new Octokit({})
-  
-  const jobInterval = setInterval(async () => {
-    await processNewestCommit(octokitClient, mongoClient, 'a')
-  }, 10000)
-
-  process.on('SIGINT', () => {
-    mongoClient.close()
-    clearInterval(jobInterval)
-  })
-
 }
 
 main().catch(console.error)
