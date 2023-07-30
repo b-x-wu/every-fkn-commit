@@ -2,6 +2,7 @@ import { Octokit } from "octokit"
 import { MongoClient, ServerApiVersion } from 'mongodb'
 import * as dotenv from 'dotenv'
 import { TwitterApi, TwitterApiReadWrite } from "twitter-api-v2"
+import { schedule } from 'node-cron'
 dotenv.config()
 
 interface Commit {
@@ -154,13 +155,17 @@ async function main () {
     accessSecret: process.env.TWITTER_ACCESS_TOKEN_SECRET ?? ''
   })).readWrite
 
-  setInterval(async () => {
-    await handleNewestCommit(octokitClient, mongoClient, 'fuck')
-  }, 30000)
+  schedule('29 * * * *', () => {
+    void (async () => {
+      await handleTweetCommit(twitterClient, octokitClient, mongoClient)
+    })()
+  }).start()
 
-  setInterval(async () => {
-    await handleTweetCommit(twitterClient, octokitClient, mongoClient)
-  }, 99000)
+  schedule('*/20 * * * * *', () => {
+    void (async () => {
+      await handleNewestCommit(octokitClient, mongoClient, 'fuck')
+    })()
+  }).start()
 }
 
 main().catch(console.error)

@@ -3,11 +3,13 @@
     "start": "npx tsc && node ./dist/index.js"
   },
   "devDependencies": {
+    "@types/node-cron": "^3.0.8",
     "typescript": "^5.1.6"
   },
   "dependencies": {
     "dotenv": "^16.3.1",
     "mongodb": "^5.7.0",
+    "node-cron": "^3.0.2",
     "octokit": "^3.1.0",
     "twitter-api-v2": "^1.15.1"
   }
