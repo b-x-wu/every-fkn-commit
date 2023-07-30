@@ -1,6 +1,7 @@
 import { Octokit } from "octokit"
 import { MongoClient, ServerApiVersion } from 'mongodb'
 import * as dotenv from 'dotenv'
+import { TwitterApi, TwitterApiReadWrite } from "twitter-api-v2"
 dotenv.config()
 
 interface Commit {
@@ -69,40 +70,72 @@ async function getLatestGithubCommit(octokitClient: Octokit, query: string): Pro
   }
 }
 
-function keywordPresentInTweet(message: string, keyword: string): boolean {
-  return message.substring(0, 255).includes(keyword)
-}
-
 async function handleNewestCommit (octokitClient: Octokit, mongoClient: MongoClient, keyword: string) {
   const commit = await getLatestGithubCommit(octokitClient, keyword)
-  if (commit == null || !keywordPresentInTweet(commit.message, keyword)) {
+  if (commit == null) {
     return
   }
 
   await insertNewCommit(mongoClient, commit)
 }
 
-async function broadcastCommit (commit: Commit): Promise<void> {
-  console.log(commit)
+async function getGithubUserTwitterHandle (octokitClient: Octokit, username: string): Promise<string | null> {
+  return (await octokitClient.rest.users.getByUsername({
+    username
+  })).data.twitter_username ?? null
 }
 
-async function handleTweetCommit (mongoClient: MongoClient): Promise<void> {
+async function commitToTweet (octokitClient: Octokit, commit: Commit): Promise<string> {
+  let authorString = ''
+  if (commit.author != null) {
+    authorString = `by ${commit.author}`
+    const twitterHandle = await getGithubUserTwitterHandle(octokitClient, commit.author)
+    if (twitterHandle != null) authorString = `${authorString} (@${twitterHandle})`
+  }
+  let messageString = commit.message
+
+  if (authorString.length === 0) {
+    if (messageString.length + 25 > 280) {
+      messageString = `${messageString.substring(0, 252)}...`
+    }
+    return `${messageString}\n\n${commit.url}`
+  }
+    
+  if (messageString.length + authorString.length + 27 > 280) {
+    messageString = `${messageString.substring(0, 250 - authorString.length)}...`
+  }
+  return `${messageString}\n\n${authorString}\n\n${commit.url}`
+}
+
+async function broadcastCommit (twitterClient: TwitterApiReadWrite, octokitClient: Octokit, commit: Commit): Promise<void> {
+  const tweet = await commitToTweet(octokitClient, commit)
+  if (process.env.NODE_ENV === 'production') {
+    await twitterClient.v2.tweet({ text: tweet })
+    return
+  }
+  console.log(tweet)
+}
+
+async function handleTweetCommit (twitterClient: TwitterApiReadWrite, octokitClient: Octokit, mongoClient: MongoClient): Promise<void> {
   const commit = await popLatestMongoCommit(mongoClient)
   if (commit == null) {
     return
   }
-  broadcastCommit(commit)
+  broadcastCommit(twitterClient, octokitClient, commit)
 } 
 
-// TODO
-// Get and store all commits with "fuck" that came after the most recent one gotten
-//    get the most recent commit that matches query
-//    check if it's already present in the db
-//    if not present, add to db
-// Fetch the newest stored commit and delete it
-//    fetch the newest one
-//    tweet it
-//    delete it
+async function loadFreshCommits (mongoClient: MongoClient, octokitClient: Octokit) {
+  await handleNewestCommit(octokitClient, mongoClient, 'l')
+  await sleep(2000)
+  await handleNewestCommit(octokitClient, mongoClient, 'm')
+  await sleep(2000)
+  await handleNewestCommit(octokitClient, mongoClient, 'n')
+  await sleep(2000)
+  await handleNewestCommit(octokitClient, mongoClient, 'o')
+  await sleep(2000)
+  await handleNewestCommit(octokitClient, mongoClient, 'p')
+  await sleep(2000)
+}
 
 async function main () {
   const uri = `mongodb+srv://${process.env.DB_USER ?? 'user'}:${process.env.DB_PASSWORD ?? 'pass'}@cluster0.cftdtes.mongodb.net/?retryWrites=true&w=majority`
@@ -114,6 +147,20 @@ async function main () {
     }
   }).connect()
   const octokitClient = new Octokit({})
+  const twitterClient = (new TwitterApi({
+    appKey: process.env.TWITTER_API_KEY ?? '',
+    appSecret: process.env.TWITTER_API_KEY_SECRET ?? '',
+    accessToken: process.env.TWITTER_ACCESS_TOKEN ?? '',
+    accessSecret: process.env.TWITTER_ACCESS_TOKEN_SECRET ?? ''
+  })).readWrite
+
+  setInterval(async () => {
+    await handleNewestCommit(octokitClient, mongoClient, 'fuck')
+  }, 30000)
+
+  setInterval(async () => {
+    await handleTweetCommit(twitterClient, octokitClient, mongoClient)
+  }, 99000)
 }
 
 main().catch(console.error)
