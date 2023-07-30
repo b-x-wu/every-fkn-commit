@@ -1,31 +1,42 @@
 import { Octokit } from "octokit"
+import { MongoClient, ServerApiVersion } from 'mongodb'
+import * as dotenv from 'dotenv'
+dotenv.config()
 
 interface Commit {
   url: string // html_url
   sha: string
-  date: string // author date
+  date: Date // author date
   author?: string // author login
   message: string
 }
 
-async function getCommits (octokitClient: Octokit, query: string): Promise<Commit[]> {
-  const commitSearchResults = await octokitClient.rest.search.commits({
-    q: query,
-    sort: 'author-date',
-    order: 'desc',
-  })
-  return commitSearchResults.data.items.map<Commit>((commitResult) => {
-    return {
-      url: commitResult.html_url,
-      sha: commitResult.sha,
-      date: commitResult.commit.author.date,
-      author: commitResult.author?.login,
-      message: commitResult.commit.message
+async function popLatestMongoCommit(client: MongoClient): Promise<Commit | null> {
+  const collection = client.db('every-fkn-commit')?.collection<Commit>('fresh-commits')
+  if (collection == null) throw new Error('Could not find collection')
+
+  return (await collection.findOneAndDelete({}, {
+    sort: {
+      date: 'desc'
     }
-  })
+  })).value
 }
 
-async function getMostRecentCommit(octokitClient: Octokit, query: string): Promise<Commit | null> {
+async function insertNewCommit (client: MongoClient, commit: Commit): Promise<boolean> {
+  const freshCommitsCollection = client.db('every-fkn-commit')?.collection<Commit>('fresh-commits')
+  const usedCommitsCollection = client.db('every-fkn-commit')?.collection<Commit>('used-commits')
+  if (freshCommitsCollection == null || usedCommitsCollection == null) throw new Error('Could not find collection')
+
+  if (await usedCommitsCollection.findOne<Commit>({ sha: commit.sha }) != null) return false
+
+  const updateResult = await freshCommitsCollection.updateOne({ sha: commit.sha }, { $set: commit }, {
+    upsert: true
+  })
+
+  return updateResult.upsertedCount > 0
+}
+
+async function getLatestGithubCommit(octokitClient: Octokit, query: string): Promise<Commit | null> {
   const commitSearchResults = await octokitClient.rest.search.commits({
     q: `${query} author-date:<${(new Date()).toISOString()}`,
     sort: 'author-date',
@@ -37,10 +48,23 @@ async function getMostRecentCommit(octokitClient: Octokit, query: string): Promi
   return {
     url: commitSearchResults.data.items[0].html_url,
     sha: commitSearchResults.data.items[0].sha,
-    date: commitSearchResults.data.items[0].commit.author.date,
+    date: new Date(commitSearchResults.data.items[0].commit.author.date),
     author: commitSearchResults.data.items[0].author?.login,
     message: commitSearchResults.data.items[0].commit.message,
   }
+}
+
+function keywordPresentInTweet(message: string, keyword: string): boolean {
+  return message.substring(0, 255).includes(keyword)
+}
+
+async function processNewestCommit (octokitClient: Octokit, mongoClient: MongoClient, keyword: string) {
+  const commit = await getLatestGithubCommit(octokitClient, keyword)
+  if (commit == null || !keywordPresentInTweet(commit.message, keyword)) {
+    return
+  }
+
+  await insertNewCommit(mongoClient, commit)
 }
 
 // TODO
@@ -54,9 +78,26 @@ async function getMostRecentCommit(octokitClient: Octokit, query: string): Promi
 //    delete it
 
 async function main () {
+  const uri = `mongodb+srv://${process.env.DB_USER ?? 'user'}:${process.env.DB_PASSWORD ?? 'pass'}@cluster0.cftdtes.mongodb.net/?retryWrites=true&w=majority`
+  const mongoClient = new MongoClient(uri, {
+    serverApi: {
+      version: ServerApiVersion.v1,
+      strict: true,
+      deprecationErrors: true
+    }
+  })
+  await mongoClient.connect()
   const octokitClient = new Octokit({})
-  // console.log(await getCommits(octokitClient, 'Q'))
-  console.log(await getMostRecentCommit(octokitClient, 'fuck'))
+  
+  const jobInterval = setInterval(async () => {
+    await processNewestCommit(octokitClient, mongoClient, 'a')
+  }, 10000)
+
+  process.on('SIGINT', () => {
+    mongoClient.close()
+    clearInterval(jobInterval)
+  })
+
 }
 
 main().catch(console.error)
