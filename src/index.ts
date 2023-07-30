@@ -155,17 +155,33 @@ async function main () {
     accessSecret: process.env.TWITTER_ACCESS_TOKEN_SECRET ?? ''
   })).readWrite
 
-  schedule('29 * * * *', () => {
+  const handleTweetCommitTask = schedule('29 * * * *', () => {
     void (async () => {
       await handleTweetCommit(twitterClient, octokitClient, mongoClient)
     })()
-  }).start()
+  })
 
-  schedule('*/20 * * * * *', () => {
+  const handleNewestCommitTask = schedule('*/20 * * * * *', () => {
     void (async () => {
       await handleNewestCommit(octokitClient, mongoClient, 'fuck')
     })()
-  }).start()
+  })
+
+  handleTweetCommitTask.start()
+  handleNewestCommitTask.start()
+
+  process.on('SIGINT', () => {
+    mongoClient.close()
+    handleNewestCommitTask.stop()
+    handleTweetCommitTask.stop()
+  })
+
+  process.on('SIGTERM', () => {
+    mongoClient.close()
+    handleNewestCommitTask.stop()
+    handleTweetCommitTask.stop()
+  })
+
 }
 
 main().catch(console.error)
