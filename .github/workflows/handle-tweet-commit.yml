@@ -40,7 +40,8 @@ jobs:
       - shell: bash
         run: |
           TWEET_EMBED=`cat tweet_embed.html`
-          sed -i "s/<tweet_embed>/$TWEET_EMBED/" README.md
+          CLEAN_TWEET_EMBED=${TWEET_EMBED//\//\\\/}
+          sed -i "s/<tweet_embed>/$CLEAN_TWEET_EMBED/" README.md
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git config user.name "github-actions[bot]"
           git commit -am "feat: update README to show latest tweet"
