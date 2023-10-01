@@ -1,14 +1,18 @@
 {
   "scripts": {
     "start:handle-newest-commit": "npx tsc && node ./dist/handleNewestCommit.js",
-    "start:handle-tweet-commit": "npx tsc && node ./dist/handleTweetCommit.js"
+    "start:handle-tweet-commit": "npx tsc && node ./dist/handleTweetCommit.js",
+    "dev:handle-newest-commit": "npx tsc && node -r dotenv/config ./dist/handleNewestCommit.js",
+    "dev:handle-tweet-commit": "npx tsc && node -r dotenv/config ./dist/handleTweetCommit.js"
   },
   "dependencies": {
-    "dotenv": "^16.3.1",
     "mongodb": "^5.7.0",
     "node-cron": "^3.0.2",
     "octokit": "^3.1.0",
     "twitter-api-v2": "^1.15.1",
     "typescript": "^5.2.2"
+  },
+  "devDependencies": {
+    "dotenv": "^16.3.1"
   }
 }
