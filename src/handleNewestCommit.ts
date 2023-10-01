@@ -36,7 +36,7 @@ async function insertNewCommit (client: MongoClient, commit: Commit): Promise<bo
   return updateResult.upsertedCount > 0
 }
 
-export async function handleNewestCommit (octokitClient: Octokit, mongoClient: MongoClient, keyword: string) {
+async function handleNewestCommit (octokitClient: Octokit, mongoClient: MongoClient, keyword: string) {
   const commit = await getLatestGithubCommit(octokitClient, keyword)
   if (commit == null) {
     return
@@ -56,9 +56,11 @@ async function main () {
   }).connect()
   const octokitClient = new Octokit({})
   
-  void (async () => {
+  try {
     await handleNewestCommit(octokitClient, mongoClient, 'fuck')
-  })()
+  } finally {
+    await mongoClient.close()
+  }
 }
 
 main().catch(console.error)

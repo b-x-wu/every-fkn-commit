@@ -58,7 +58,7 @@ async function popLatestMongoCommit(client: MongoClient): Promise<Commit | null>
   return commit.value
 }
 
-export async function handleTweetCommit (twitterClient: TwitterApiReadWrite, octokitClient: Octokit, mongoClient: MongoClient): Promise<void> {
+async function handleTweetCommit (twitterClient: TwitterApiReadWrite, octokitClient: Octokit, mongoClient: MongoClient): Promise<void> {
   const commit = await popLatestMongoCommit(mongoClient)
   if (commit == null) {
     return
@@ -83,9 +83,11 @@ async function main () {
     accessSecret: process.env.TWITTER_ACCESS_TOKEN_SECRET ?? ''
   })).readWrite
 
-  void (async () => {
+  try {
     await handleTweetCommit(twitterClient, octokitClient, mongoClient)
-  })()
+  } finally {
+    await mongoClient.close()
+  }
 }
 
 main().catch(console.error)
