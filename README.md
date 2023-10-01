@@ -1,3 +1,7 @@
 # Every Fucking Commit
 
-A Twitter bot that gathers every commit on GitHub with "fuck" in the commit message. Find the bot [here](https://twitter.com/EveryFknCommit).
+A Twitter bot that gathers every commit on GitHub with "fuck" in the commit message. Find the bot [@EveryFknCommit](https://twitter.com/EveryFknCommit).
+
+## Latest Tweet
+
+<tweet_embed>

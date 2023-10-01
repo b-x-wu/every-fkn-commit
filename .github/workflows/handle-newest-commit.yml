@@ -6,8 +6,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  collect-threads:
-    name: Handle Newest Commit
+  get-newest-commit:
+    name: Get Newest Commit
     runs-on: ubuntu-latest
     env:
       DB_USER: ${{ secrets.DB_USER }}
