@@ -24,6 +24,10 @@ jobs:
           cache: "npm"
       - run: npm install --production
       - run: npm run start:handle-tweet-commit
+      - uses: actions/upload-artifact@v3
+        with:
+          name: tweet_embed
+          path: tweet_embed.html
   update-readme:
     name: Update Readme
     needs: tweet-commit
