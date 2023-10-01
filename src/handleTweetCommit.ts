@@ -42,7 +42,7 @@ async function saveTweetEmbed (id: string) {
   const html: string = (await res.json()).html
 
   try {
-    writeFileSync("twitter_embed.html", html)
+    writeFileSync("tweet_embed.html", html)
   } catch {
     console.error("Failed to save the tweet embed.")
   }
@@ -59,6 +59,7 @@ async function broadcastCommit (twitterClient: TwitterApiReadWrite, octokitClien
     // await saveTweetEmbed(tweetResult.data.id)
     await saveTweetEmbed('1708330647519981758')
   }
+  await saveTweetEmbed('1708330647519981758')
   console.log(tweetText)
 }
 
@@ -83,9 +84,10 @@ async function popLatestMongoCommit(client: MongoClient): Promise<Commit | null>
 async function handleTweetCommit (twitterClient: TwitterApiReadWrite, octokitClient: Octokit, mongoClient: MongoClient): Promise<void> {
   const commit = await popLatestMongoCommit(mongoClient)
   if (commit == null) {
+    console.log("No fresh commits found.")
     return
   }
-  broadcastCommit(twitterClient, octokitClient, commit)
+  await broadcastCommit(twitterClient, octokitClient, commit)
 }
 
 async function main () {
