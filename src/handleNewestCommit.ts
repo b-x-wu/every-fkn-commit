@@ -1,4 +1,4 @@
-import { MongoClient } from "mongodb"
+import { MongoClient, ServerApiVersion } from "mongodb"
 import { Octokit } from "octokit"
 import { Commit } from "./types"
 
@@ -44,3 +44,21 @@ export async function handleNewestCommit (octokitClient: Octokit, mongoClient: M
 
   await insertNewCommit(mongoClient, commit)
 }
+
+async function main () {
+  const uri = `mongodb+srv://${process.env.DB_USER ?? 'user'}:${process.env.DB_PASSWORD ?? 'pass'}@cluster0.cftdtes.mongodb.net/?retryWrites=true&w=majority`
+  const mongoClient = await new MongoClient(uri, {
+    serverApi: {
+      version: ServerApiVersion.v1,
+      strict: true,
+      deprecationErrors: true
+    }
+  }).connect()
+  const octokitClient = new Octokit({})
+  
+  void (async () => {
+    await handleNewestCommit(octokitClient, mongoClient, 'fuck')
+  })()
+}
+
+main().catch(console.error)

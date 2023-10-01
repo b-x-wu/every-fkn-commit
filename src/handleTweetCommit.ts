@@ -1,6 +1,6 @@
-import { MongoClient } from "mongodb"
+import { MongoClient, ServerApiVersion } from "mongodb"
 import { Octokit } from "octokit"
-import { TwitterApiReadWrite } from "twitter-api-v2"
+import { TwitterApi, TwitterApiReadWrite } from "twitter-api-v2"
 import { Commit } from "./types"
 
 async function getGithubUserTwitterHandle (octokitClient: Octokit, username: string): Promise<string | null> {
@@ -64,4 +64,28 @@ export async function handleTweetCommit (twitterClient: TwitterApiReadWrite, oct
     return
   }
   broadcastCommit(twitterClient, octokitClient, commit)
-} 
+}
+
+async function main () {
+  const uri = `mongodb+srv://${process.env.DB_USER ?? 'user'}:${process.env.DB_PASSWORD ?? 'pass'}@cluster0.cftdtes.mongodb.net/?retryWrites=true&w=majority`
+  const mongoClient = await new MongoClient(uri, {
+    serverApi: {
+      version: ServerApiVersion.v1,
+      strict: true,
+      deprecationErrors: true
+    }
+  }).connect()
+  const octokitClient = new Octokit({})
+  const twitterClient = (new TwitterApi({
+    appKey: process.env.TWITTER_API_KEY ?? '',
+    appSecret: process.env.TWITTER_API_KEY_SECRET ?? '',
+    accessToken: process.env.TWITTER_ACCESS_TOKEN ?? '',
+    accessSecret: process.env.TWITTER_ACCESS_TOKEN_SECRET ?? ''
+  })).readWrite
+
+  void (async () => {
+    await handleTweetCommit(twitterClient, octokitClient, mongoClient)
+  })()
+}
+
+main().catch(console.error)
