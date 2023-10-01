@@ -34,16 +34,32 @@ async function commitToTweet (octokitClient: Octokit, commit: Commit): Promise<s
   return `${messageString}\n\n${authorString}\n\n${commit.url}`
 }
 
+async function saveTweetEmbed (id: string) {
+  const url = `https://publish.twitter.com/oembed?url=https%3A%2F%2Ftwitter.com%2F${ACCOUNT_NAME}%2Fstatus%2F${id}&partner=&hide_thread=false`
+  const res = await fetch(url)
+  if (!res.ok) { return }
+
+  const html: string = (await res.json()).html
+
+  try {
+    writeFileSync("tweet_embed.html", html)
+  } catch {
+    console.error("Failed to save the tweet embed.")
+  }
+}
+
 async function broadcastCommit (twitterClient: TwitterApiReadWrite, octokitClient: Octokit, commit: Commit): Promise<void> {
   const tweetText = await commitToTweet(octokitClient, commit)
   if (process.env.NODE_ENV === 'production') {
-    const tweetResult = await twitterClient.v2.tweet({ text: tweetText })
-    if (tweetResult.errors != null) {
-      throw new Error(tweetResult.errors.toString())
-    }
-    console.log(tweetResult.data.text)
-    return
+    // const tweetResult = await twitterClient.v2.tweet({ text: tweetText })
+    // if (tweetResult.errors != null) {
+    //   throw new Error(tweetResult.errors.toString())
+    // }
+    // console.log(tweetResult.data.text)
+    // await saveTweetEmbed(tweetResult.data.id)
+    await saveTweetEmbed('1708330647519981758')
   }
+  await saveTweetEmbed('1708330647519981758')
   console.log(tweetText)
 }
 

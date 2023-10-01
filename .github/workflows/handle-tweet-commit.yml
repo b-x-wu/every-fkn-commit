@@ -24,3 +24,21 @@ jobs:
           cache: "npm"
       - run: npm install --production
       - run: npm run start:handle-tweet-commit
+  update-readme:
+    name: Update Readme
+    needs: tweet-commit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/download-artifact@v3
+        with:
+          name: tweet_embed
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      - run: |
+          python update_readme.py
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git commit -am "feat: update README to show latest tweet"
+          git push
