@@ -23,4 +23,6 @@ jobs:
           node-version: 18.x
           cache: "npm"
       - run: npm install --production
-      - run: npm run start:handle-tweet-commit
+      - run: |
+          export NODE_ENV=production
+          npm run start:handle-tweet-commit
