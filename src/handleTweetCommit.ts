@@ -1,5 +1,4 @@
 import { MongoClient, ServerApiVersion } from "mongodb"
-import { writeFileSync } from "fs"
 import { Octokit } from "octokit"
 import { TwitterApi, TwitterApiReadWrite } from "twitter-api-v2"
 import { Commit } from "./types"
@@ -57,12 +56,12 @@ async function popLatestMongoCommit(client: MongoClient): Promise<Commit | null>
       date: 'desc'
     }
   })
-  if (commit.value == null) return null
+  if (commit == null) return null
 
-  usedCommitsCollection.updateOne({ sha: commit.value.sha }, { $set: commit.value }, {
+  usedCommitsCollection.updateOne({ sha: commit.sha }, { $set: commit }, {
     upsert: true
   })
-  return commit.value
+  return commit
 }
 
 async function handleTweetCommit (twitterClient: TwitterApiReadWrite, octokitClient: Octokit, mongoClient: MongoClient): Promise<void> {
