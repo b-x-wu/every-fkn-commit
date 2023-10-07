@@ -73,12 +73,12 @@ async function popLatestMongoCommit(client: MongoClient): Promise<Commit | null>
       date: 'desc'
     }
   })
-  if (commit.value == null) return null
+  if (commit == null) return null
 
-  usedCommitsCollection.updateOne({ sha: commit.value.sha }, { $set: commit.value }, {
+  usedCommitsCollection.updateOne({ sha: commit.sha }, { $set: commit }, {
     upsert: true
   })
-  return commit.value
+  return commit
 }
 
 async function handleTweetCommit (twitterClient: TwitterApiReadWrite, octokitClient: Octokit, mongoClient: MongoClient): Promise<void> {
